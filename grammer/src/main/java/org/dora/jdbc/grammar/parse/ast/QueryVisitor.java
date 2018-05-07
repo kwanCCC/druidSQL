@@ -1,10 +1,16 @@
 package org.dora.jdbc.grammar.parse.ast;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Stack;
+
 import lombok.Getter;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.dora.jdbc.grammar.model.AliasOperand;
+import org.dora.jdbc.grammar.model.Operand;
 import org.dora.jdbc.grammar.parse.DruidQuery;
 import org.dora.jdbc.grammar.parse.DruidQuery.AddNameContext;
 import org.dora.jdbc.grammar.parse.DruidQuery.AggregationNameContext;
@@ -58,18 +64,36 @@ import org.dora.jdbc.grammar.parse.Query;
 /**
  * Created by SDE on 2018/5/7.
  * implements base interface so the ast iteration could be controllable
- * Not thread safe
+ * Not thread safe But Different visitors in each complete iteration
  */
 public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisitor<Boolean> {
-
-    private volatile int mark = 0;
 
     @Getter
     private Query query;
 
+    private Query.QueryBuilder builder;
+
+    private Stack<Object> stack;
+    private String defaultTableName;
+
+    public QueryVisitor() {
+        this.stack = new Stack<>();
+    }
+
     @Override
     public Boolean visitProg(ProgContext ctx) {
-
+        if (ctx.tableRef() != null) {
+            if (!visitTableRef(ctx.tableRef())) {
+                return false;
+            }
+            builder.table(String.valueOf(stack.pop()));
+        }
+        if (ctx.columnList() != null) {
+            if (!visitColumnList(ctx.columnList())) {
+                return false;
+            }
+            builder.columns((List<Operand>)stack.pop());
+        }
         return null;
     }
 
@@ -80,12 +104,56 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitColumnList(ColumnListContext ctx) {
+        List<Operand> operands = new ArrayList<>();
+        List<DruidQuery.NameOperandContext> list = ctx.nameOperand();
+        for (DruidQuery.NameOperandContext nameOperandContext : list) {
+            if (!visitNameOperand(nameOperandContext)) {
+                return false;
+            }
+            Operand operand = (Operand)stack.pop();
+            operands.add(operand);
+        }
+        stack.push(operands);
         return null;
     }
 
     @Override
     public Boolean visitNameOperand(NameOperandContext ctx) {
-        return null;
+        stack.push(defaultTableName);
+        if (ctx.tableName != null) {
+            defaultTableName = ctx.tableName.getText();
+        }
+        if (visitName(ctx.columnName)) {
+            Operand inOperand = (Operand)stack.pop();
+            defaultTableName = String.valueOf(stack.pop());
+
+            if (ctx.alias != null) {
+                stack.push(new AliasOperand(inOperand, ctx.alias.getText()));
+            } else {
+                stack.push(inOperand);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    public Boolean visitName(DruidQuery.NameContext ctx) {
+        if (ctx instanceof DruidQuery.LRNameContext) {
+            return visitLRName((DruidQuery.LRNameContext)ctx);
+        } else if (ctx instanceof DruidQuery.MulNameContext) {
+            return visitMulName((DruidQuery.MulNameContext)ctx);
+        } else if (ctx instanceof DruidQuery.AddNameContext) {
+            return visitAddName((DruidQuery.AddNameContext)ctx);
+        } else if (ctx instanceof DruidQuery.AggregationNameContext) {
+            return visitAggregationName((DruidQuery.AggregationNameContext)ctx);
+        } else if (ctx instanceof DruidQuery.ConditionAggregationNameContext) {
+            return visitConditionAggregationName((DruidQuery.ConditionAggregationNameContext)ctx);
+        } else if (ctx instanceof DruidQuery.DistinctContext) {
+            return visitDistinct((DruidQuery.DistinctContext)ctx);
+        } else if (ctx instanceof DruidQuery.ColumnNameContext) {
+            return visitColumnName((DruidQuery.ColumnNameContext)ctx);
+        }
+        return false;
     }
 
     @Override
@@ -145,7 +213,9 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitTableRef(TableRefContext ctx) {
-        return null;
+        this.defaultTableName = ctx.tableName.getText();
+        stack.push(defaultTableName);
+        return true;
     }
 
     @Override
@@ -306,8 +376,9 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
     @Override
     public Boolean visit(ParseTree parseTree) {
         if (parseTree instanceof DruidQuery.ProgContext) {
+            builder = Query.builder();
             if (visitProg((DruidQuery.ProgContext)parseTree)) {
-                Query.builder().build();
+                query = builder.build();
                 return true;
             }
         }
