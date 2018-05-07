@@ -5,6 +5,7 @@ import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.dora.jdbc.grammar.parse.DruidQuery;
 import org.dora.jdbc.grammar.parse.DruidQuery.AddNameContext;
 import org.dora.jdbc.grammar.parse.DruidQuery.AggregationNameContext;
 import org.dora.jdbc.grammar.parse.DruidQuery.AndOprContext;
@@ -56,16 +57,19 @@ import org.dora.jdbc.grammar.parse.Query;
 
 /**
  * Created by SDE on 2018/5/7.
+ * implements base interface so the ast iteration could be controllable
  * Not thread safe
  */
 public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisitor<Boolean> {
+
+    private volatile int mark = 0;
 
     @Getter
     private Query query;
 
     @Override
     public Boolean visitProg(ProgContext ctx) {
-        
+
         return null;
     }
 
@@ -301,6 +305,12 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visit(ParseTree parseTree) {
+        if (parseTree instanceof DruidQuery.ProgContext) {
+            if (visitProg((DruidQuery.ProgContext)parseTree)) {
+                Query.builder().build();
+                return true;
+            }
+        }
         return null;
     }
 
