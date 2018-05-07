@@ -1,64 +1,71 @@
-package org.dora.jdbc.grammer.parse.ast;
+package org.dora.jdbc.grammar.parse.ast;
 
+import lombok.Getter;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.dora.jdbc.grammer.parse.DruidQuery.AddNameContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.AggregationNameContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.AndOprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.ArithMetricLiteralContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.ColumnListContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.ColumnNameContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.ConditionAggregationNameContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.ConstLiteralContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.DistinctContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.DurationGranContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.EqOprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.FloatEleContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.FloatLiteralContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.GranularityClauseContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.GroupClauseContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.GtOprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.GteqOprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.IdEleContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.InBooleanExprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.InExprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.InOpContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.InRightOperandListContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.IntEleContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.IntLiteralContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.LRNameContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.LikeOprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.LimitClauseContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.LrExprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.LtOprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.LteqOprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.MulNameContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.NameOperandContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.NameOprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.NotEqOprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.NotInOpContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.OrOprContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.OrderClauseContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.OrderContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.PeriodGranContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.ProgContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.QuantifiersContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.SimpleGranContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.StringEleContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.StringLiteralContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.TableRefContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.TimestampsContext;
-import org.dora.jdbc.grammer.parse.DruidQuery.WhereClauseContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.AddNameContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.AggregationNameContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.AndOprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.ArithMetricLiteralContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.ColumnListContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.ColumnNameContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.ConditionAggregationNameContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.ConstLiteralContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.DistinctContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.DurationGranContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.EqOprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.FloatEleContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.FloatLiteralContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.GranularityClauseContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.GroupClauseContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.GtOprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.GteqOprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.IdEleContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.InBooleanExprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.InExprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.InOpContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.InRightOperandListContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.IntEleContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.IntLiteralContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.LRNameContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.LikeOprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.LimitClauseContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.LrExprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.LtOprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.LteqOprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.MulNameContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.NameOperandContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.NameOprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.NotEqOprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.NotInOpContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.OrOprContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.OrderClauseContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.OrderContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.PeriodGranContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.ProgContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.QuantifiersContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.SimpleGranContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.StringEleContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.StringLiteralContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.TableRefContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.TimestampsContext;
+import org.dora.jdbc.grammar.parse.DruidQuery.WhereClauseContext;
+import org.dora.jdbc.grammar.parse.Query;
 
 /**
  * Created by SDE on 2018/5/7.
+ * Not thread safe
  */
-public class QueryVisitor implements org.dora.jdbc.grammer.parse.DruidQueryVisitor<Boolean> {
-    
+public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisitor<Boolean> {
+
+    @Getter
+    private Query query;
+
     @Override
     public Boolean visitProg(ProgContext ctx) {
+        
         return null;
     }
 

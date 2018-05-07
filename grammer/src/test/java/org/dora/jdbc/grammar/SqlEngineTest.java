@@ -1,5 +1,6 @@
-package org.dora.jdbc.grammer;
+package org.dora.jdbc.grammar;
 
+import java.sql.SQLException;
 import java.util.Objects;
 
 import com.alibaba.fastjson.JSONObject;
@@ -17,11 +18,11 @@ public class SqlEngineTest {
 
     @BeforeClass
     public static void setup() {
-        sqlEngine = SqlEngine.create();
+        sqlEngine = SqlEngine.SQL_ENGINE;
     }
 
     @Test
-    public void sqlEngine_could_convert_sql_to_druid_json() {
+    public void sqlEngine_could_convert_sql_to_druid_json() throws SQLException {
         String sql = "select * from table;";
         String parse = sqlEngine.parse(sql);
         Assert.assertTrue("convert to json and not null", Objects.nonNull(parse));
