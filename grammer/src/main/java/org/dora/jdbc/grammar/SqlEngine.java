@@ -12,7 +12,7 @@ import org.dora.jdbc.grammar.parse.DruidQuery;
 import org.dora.jdbc.grammar.parse.ast.QueryVisitor;
 
 /**
- * Created by SDE on 2018/5/7.
+ * Created by SDE on 2017/5/7.
  */
 public final class SqlEngine {
 
@@ -29,10 +29,10 @@ public final class SqlEngine {
 
         DruidQuery query = new DruidQuery(token);
         QueryVisitor visitor = new QueryVisitor();
-        if (visitor.visitProg(query.prog())) {
+        if (visitor.visit(query.prog())) {
             return JSONObject.toJSONString(visitor.getQuery());
         }
-
+        // TODO: should throw Exception here? there may be an exception had been happened already
         throw new SQLException("grammar engine parse fail");
     }
 }
