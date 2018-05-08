@@ -9,19 +9,29 @@ import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.apache.commons.lang3.tuple.Pair;
 import org.dora.jdbc.grammar.model.FunctionManager;
 import org.dora.jdbc.grammar.model.Granularities;
 import org.dora.jdbc.grammar.model.Granularity;
 import org.dora.jdbc.grammar.model.IBooleanExpr;
+import org.dora.jdbc.grammar.model.expr.BooleanExprAnd;
+import org.dora.jdbc.grammar.model.expr.BooleanExprEq;
+import org.dora.jdbc.grammar.model.expr.BooleanExprGt;
 import org.dora.jdbc.grammar.model.operand.AddOperand;
 import org.dora.jdbc.grammar.model.operand.AliasOperand;
+import org.dora.jdbc.grammar.model.operand.ConditionAggregationOperand;
+import org.dora.jdbc.grammar.model.operand.DistinctOperand;
 import org.dora.jdbc.grammar.model.operand.DivideOperand;
+import org.dora.jdbc.grammar.model.operand.FloatPrimitiveOperand;
+import org.dora.jdbc.grammar.model.operand.IntPrimitiveOperand;
 import org.dora.jdbc.grammar.model.operand.LimitOperand;
 import org.dora.jdbc.grammar.model.operand.MinusOperand;
 import org.dora.jdbc.grammar.model.operand.MultiplyOperand;
+import org.dora.jdbc.grammar.model.operand.NameOperand;
 import org.dora.jdbc.grammar.model.operand.Operand;
 import org.dora.jdbc.grammar.model.operand.OrderByOperand;
 import org.dora.jdbc.grammar.model.operand.QuotientOperand;
+import org.dora.jdbc.grammar.model.operand.StringPrimitiveOperand;
 import org.dora.jdbc.grammar.parse.DruidLexer;
 import org.dora.jdbc.grammar.parse.DruidQuery;
 import org.dora.jdbc.grammar.parse.DruidQuery.AddNameContext;
@@ -265,42 +275,83 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitDistinct(DistinctContext ctx) {
-        return null;
+        if (visitName(ctx.name())) {
+            Operand operand = (Operand)stack.pop();
+            stack.push(new DistinctOperand(operand));
+            return true;
+        }
+        return false;
     }
 
     @Override
     public Boolean visitLRName(LRNameContext ctx) {
-        return null;
+        return visitName(ctx.name());
     }
 
     @Override
     public Boolean visitColumnName(ColumnNameContext ctx) {
-        return null;
+        DruidQuery.IdentityContext identity = ctx.identity();
+        return visitIdentity(identity);
+    }
+
+    private Boolean visitIdentity(DruidQuery.IdentityContext identity) {
+        if (identity instanceof DruidQuery.IdEleContext) {
+            return visitIdEle((DruidQuery.IdEleContext)identity);
+        } else if (identity instanceof DruidQuery.IntEleContext) {
+            return visitIntEle((DruidQuery.IntEleContext)identity);
+        } else if (identity instanceof DruidQuery.FloatEleContext) {
+            return visitFloatEle((DruidQuery.FloatEleContext)identity);
+        } else if (identity instanceof DruidQuery.StringEleContext) {
+            return visitStringEle((DruidQuery.StringEleContext)identity);
+        }
+        return false;
     }
 
     @Override
     public Boolean visitConditionAggregationName(ConditionAggregationNameContext ctx) {
-        return null;
+        if (visitName(ctx.aggregation)) {
+            Operand aggregation = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.condition)) {
+                IBooleanExpr condition = (IBooleanExpr)stack.pop();
+                stack.push(new ConditionAggregationOperand(aggregation, condition));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitIdEle(IdEleContext ctx) {
-        return null;
+        stack.push(new NameOperand(defaultTableName, ctx.ID().getText()));
+        return true;
     }
 
     @Override
     public Boolean visitIntEle(IntEleContext ctx) {
-        return null;
+        stack.push(new IntPrimitiveOperand(ctx.getText()));
+        return true;
     }
 
     @Override
     public Boolean visitFloatEle(FloatEleContext ctx) {
-        return null;
+        stack.push(new FloatPrimitiveOperand(ctx.getText()));
+        return true;
     }
 
     @Override
     public Boolean visitStringEle(StringEleContext ctx) {
-        return null;
+        stack.push(new StringPrimitiveOperand(unwrapQuotedString(ctx.STRING().getText())));
+        return true;
+    }
+
+    private String unwrapQuotedString(String str) {
+        if (str == null) {
+            return null;
+        }
+        if (str.startsWith("'") && str.endsWith("'") || str.startsWith("\"") && str.endsWith("\"")) {
+            return str.substring(1, str.length() - 1);
+        }
+        return str;
     }
 
     @Override
@@ -354,32 +405,57 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitTimestamps(TimestampsContext ctx) {
-        return null;
+        builder.timestamps(Pair.<Long, Long>of(Long.valueOf(ctx.left.getText()), Long.valueOf(ctx.right.getText())));
+        return true;
     }
 
     @Override
     public Boolean visitNameOpr(NameOprContext ctx) {
-        return null;
+        return visitName(ctx.name());
     }
 
     @Override
     public Boolean visitGtOpr(GtOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                stack.push(new BooleanExprGt(left, right, false));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitEqOpr(EqOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                stack.push(new BooleanExprEq(left, right));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitLrExpr(LrExprContext ctx) {
-        return null;
+        return visitBoolExpr(ctx.boolExpr());
     }
 
     @Override
     public Boolean visitAndOpr(AndOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            IBooleanExpr left = (IBooleanExpr)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                IBooleanExpr right = (IBooleanExpr)stack.pop();
+                stack.push(new BooleanExprAnd(left, right));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

@@ -5,6 +5,7 @@ import java.util.List;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.apache.commons.lang3.tuple.Pair;
 import org.dora.jdbc.grammar.model.Granularity;
 import org.dora.jdbc.grammar.model.IBooleanExpr;
 import org.dora.jdbc.grammar.model.operand.LimitOperand;
@@ -26,4 +27,5 @@ public class Query {
     private final List<OrderByOperand> orderBy;
     private final LimitOperand limit;
     private final Granularity granularity;
+    private final Pair<Long, Long> timestamps;
 }
