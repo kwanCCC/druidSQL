@@ -1,4 +1,4 @@
-package org.dora.jdbc.grammar.model;
+package org.dora.jdbc.grammar.model.granularity;
 
 import java.util.Map;
 

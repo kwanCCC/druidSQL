@@ -1,8 +1,9 @@
-package org.dora.jdbc.grammar.model;
+package org.dora.jdbc.grammar.model.granularity;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.dora.jdbc.grammar.model.granularity.Granularity;
 
 @Data
 @AllArgsConstructor

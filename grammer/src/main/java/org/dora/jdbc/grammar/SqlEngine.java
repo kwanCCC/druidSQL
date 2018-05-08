@@ -4,6 +4,7 @@ import java.sql.SQLException;
 
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.DefaultErrorStrategy;
 import org.apache.commons.lang3.StringUtils;
 import org.dora.jdbc.grammar.parse.DruidLexer;
 import org.dora.jdbc.grammar.parse.DruidQuery;
@@ -23,10 +24,20 @@ public final class SqlEngine {
         if (StringUtils.isBlank(sql)) { throw new SQLException("blank sql is not allowed"); }
 
         ANTLRInputStream input = new ANTLRInputStream(sql);
+        DefaultErrorStrategy errorHandler = new DefaultErrorStrategy();
         DruidLexer lexer = new DruidLexer(input);
+        lexer.removeErrorListeners();
+        // 分词的错误处理
+        lexer.addErrorListener(new LexerErrorListener());
+
         CommonTokenStream token = new CommonTokenStream(lexer);
 
         DruidQuery query = new DruidQuery(token);
+
+        query.setErrorHandler(errorHandler);
+        query.removeErrorListeners();
+        query.addErrorListener(new SyntaxErrorListener());
+
         QueryVisitor visitor = new QueryVisitor();
         if (visitor.visit(query.prog())) {
             return visitor.getQuery();
