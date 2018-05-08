@@ -9,13 +9,15 @@ import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.dora.jdbc.grammar.model.operand.AliasOperand;
-import org.dora.jdbc.grammar.model.operand.DivideOperand;
 import org.dora.jdbc.grammar.model.FunctionManager;
 import org.dora.jdbc.grammar.model.Granularities;
 import org.dora.jdbc.grammar.model.Granularity;
 import org.dora.jdbc.grammar.model.IBooleanExpr;
+import org.dora.jdbc.grammar.model.operand.AddOperand;
+import org.dora.jdbc.grammar.model.operand.AliasOperand;
+import org.dora.jdbc.grammar.model.operand.DivideOperand;
 import org.dora.jdbc.grammar.model.operand.LimitOperand;
+import org.dora.jdbc.grammar.model.operand.MinusOperand;
 import org.dora.jdbc.grammar.model.operand.MultiplyOperand;
 import org.dora.jdbc.grammar.model.operand.Operand;
 import org.dora.jdbc.grammar.model.operand.OrderByOperand;
@@ -243,7 +245,22 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitAddName(AddNameContext ctx) {
-        return null;
+        if (visitName(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitName(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                int type = ctx.op.getType();
+                switch (type) {
+                    case DruidLexer.PLUS:
+                        stack.push(new AddOperand(left, right));
+                        return true;
+                    case DruidLexer.SUB:
+                        stack.push(new MinusOperand(left, right));
+                        return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Override
