@@ -1,25 +1,45 @@
 package org.dora.jdbc.grammar.parse.ast;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Stack;
 
+import com.google.common.collect.Lists;
 import lombok.Getter;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.dora.jdbc.grammar.model.operand.AliasOperand;
-import org.dora.jdbc.grammar.model.operand.DivideOperand;
+import org.apache.commons.lang3.tuple.Pair;
 import org.dora.jdbc.grammar.model.FunctionManager;
-import org.dora.jdbc.grammar.model.Granularities;
-import org.dora.jdbc.grammar.model.Granularity;
-import org.dora.jdbc.grammar.model.IBooleanExpr;
+import org.dora.jdbc.grammar.model.granularity.Granularities;
+import org.dora.jdbc.grammar.model.granularity.Granularity;
+import org.dora.jdbc.grammar.model.granularity.SimpleGranularity;
+import org.dora.jdbc.grammar.model.expr.BooleanExprAnd;
+import org.dora.jdbc.grammar.model.expr.BooleanExprEq;
+import org.dora.jdbc.grammar.model.expr.BooleanExprGt;
+import org.dora.jdbc.grammar.model.expr.BooleanExprLike;
+import org.dora.jdbc.grammar.model.expr.BooleanExprLt;
+import org.dora.jdbc.grammar.model.expr.BooleanExprNot;
+import org.dora.jdbc.grammar.model.expr.BooleanExprOr;
+import org.dora.jdbc.grammar.model.expr.IBooleanExpr;
+import org.dora.jdbc.grammar.model.operand.AddOperand;
+import org.dora.jdbc.grammar.model.operand.AliasOperand;
+import org.dora.jdbc.grammar.model.operand.ConditionAggregationOperand;
+import org.dora.jdbc.grammar.model.operand.DistinctOperand;
+import org.dora.jdbc.grammar.model.operand.DivideOperand;
+import org.dora.jdbc.grammar.model.operand.FloatPrimitiveOperand;
+import org.dora.jdbc.grammar.model.operand.IntPrimitiveOperand;
 import org.dora.jdbc.grammar.model.operand.LimitOperand;
+import org.dora.jdbc.grammar.model.operand.MinusOperand;
 import org.dora.jdbc.grammar.model.operand.MultiplyOperand;
+import org.dora.jdbc.grammar.model.operand.NameOperand;
 import org.dora.jdbc.grammar.model.operand.Operand;
 import org.dora.jdbc.grammar.model.operand.OrderByOperand;
 import org.dora.jdbc.grammar.model.operand.QuotientOperand;
+import org.dora.jdbc.grammar.model.operand.StringPrimitiveOperand;
 import org.dora.jdbc.grammar.parse.DruidLexer;
 import org.dora.jdbc.grammar.parse.DruidQuery;
 import org.dora.jdbc.grammar.parse.DruidQuery.AddNameContext;
@@ -70,6 +90,8 @@ import org.dora.jdbc.grammar.parse.DruidQuery.TableRefContext;
 import org.dora.jdbc.grammar.parse.DruidQuery.TimestampsContext;
 import org.dora.jdbc.grammar.parse.DruidQuery.WhereClauseContext;
 import org.dora.jdbc.grammar.parse.Query;
+
+import static java.lang.Long.valueOf;
 
 /**
  * Created by SDE on 2018/5/7.
@@ -243,47 +265,103 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitAddName(AddNameContext ctx) {
-        return null;
+        if (visitName(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitName(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                int type = ctx.op.getType();
+                switch (type) {
+                    case DruidLexer.PLUS:
+                        stack.push(new AddOperand(left, right));
+                        return true;
+                    case DruidLexer.SUB:
+                        stack.push(new MinusOperand(left, right));
+                        return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitDistinct(DistinctContext ctx) {
-        return null;
+        if (visitName(ctx.name())) {
+            Operand operand = (Operand)stack.pop();
+            stack.push(new DistinctOperand(operand));
+            return true;
+        }
+        return false;
     }
 
     @Override
     public Boolean visitLRName(LRNameContext ctx) {
-        return null;
+        return visitName(ctx.name());
     }
 
     @Override
     public Boolean visitColumnName(ColumnNameContext ctx) {
-        return null;
+        DruidQuery.IdentityContext identity = ctx.identity();
+        return visitIdentity(identity);
+    }
+
+    private Boolean visitIdentity(DruidQuery.IdentityContext identity) {
+        if (identity instanceof DruidQuery.IdEleContext) {
+            return visitIdEle((DruidQuery.IdEleContext)identity);
+        } else if (identity instanceof DruidQuery.IntEleContext) {
+            return visitIntEle((DruidQuery.IntEleContext)identity);
+        } else if (identity instanceof DruidQuery.FloatEleContext) {
+            return visitFloatEle((DruidQuery.FloatEleContext)identity);
+        } else if (identity instanceof DruidQuery.StringEleContext) {
+            return visitStringEle((DruidQuery.StringEleContext)identity);
+        }
+        return false;
     }
 
     @Override
     public Boolean visitConditionAggregationName(ConditionAggregationNameContext ctx) {
-        return null;
+        if (visitName(ctx.aggregation)) {
+            Operand aggregation = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.condition)) {
+                IBooleanExpr condition = (IBooleanExpr)stack.pop();
+                stack.push(new ConditionAggregationOperand(aggregation, condition));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitIdEle(IdEleContext ctx) {
-        return null;
+        stack.push(new NameOperand(defaultTableName, ctx.ID().getText()));
+        return true;
     }
 
     @Override
     public Boolean visitIntEle(IntEleContext ctx) {
-        return null;
+        stack.push(new IntPrimitiveOperand(ctx.getText()));
+        return true;
     }
 
     @Override
     public Boolean visitFloatEle(FloatEleContext ctx) {
-        return null;
+        stack.push(new FloatPrimitiveOperand(ctx.getText()));
+        return true;
     }
 
     @Override
     public Boolean visitStringEle(StringEleContext ctx) {
-        return null;
+        stack.push(new StringPrimitiveOperand(unwrapQuotedString(ctx.STRING().getText())));
+        return true;
+    }
+
+    private String unwrapQuotedString(String str) {
+        if (str == null) {
+            return null;
+        }
+        if (str.startsWith("'") && str.endsWith("'") || str.startsWith("\"") && str.endsWith("\"")) {
+            return str.substring(1, str.length() - 1);
+        }
+        return str;
     }
 
     @Override
@@ -337,112 +415,313 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitTimestamps(TimestampsContext ctx) {
-        return null;
+        builder.timestamps(Pair.<Long, Long>of(Long.valueOf(ctx.left.getText()), Long.valueOf(ctx.right.getText())));
+        return true;
     }
 
     @Override
     public Boolean visitNameOpr(NameOprContext ctx) {
-        return null;
+        return visitName(ctx.name());
     }
 
     @Override
     public Boolean visitGtOpr(GtOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                stack.push(new BooleanExprGt(left, right, false));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitEqOpr(EqOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                stack.push(new BooleanExprEq(left, right));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitLrExpr(LrExprContext ctx) {
-        return null;
+        return visitBoolExpr(ctx.boolExpr());
     }
 
     @Override
     public Boolean visitAndOpr(AndOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            IBooleanExpr left = (IBooleanExpr)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                IBooleanExpr right = (IBooleanExpr)stack.pop();
+                stack.push(new BooleanExprAnd(left, right));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitLteqOpr(LteqOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                stack.push(new BooleanExprLt(left, right, true));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitNotEqOpr(NotEqOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                stack.push(new BooleanExprNot(new BooleanExprEq(left, right)));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitLikeOpr(LikeOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                stack.push(new BooleanExprLike(left, right));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitInBooleanExpr(InBooleanExprContext ctx) {
-        return null;
+        if (!visitInExpr(ctx.inExpr())) {
+            return false;
+        }
+        return true;
     }
 
     @Override
     public Boolean visitLtOpr(LtOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                stack.push(new BooleanExprLt(left, right, false));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitGteqOpr(GteqOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                stack.push(new BooleanExprGt(left, right, true));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitOrOpr(OrOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            IBooleanExpr left = (IBooleanExpr)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                IBooleanExpr right = (IBooleanExpr)stack.pop();
+                stack.push(new BooleanExprOr(Arrays.asList(left, right)));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitInExpr(InExprContext ctx) {
-        return null;
+        if (!visitIdentity(ctx.left)) {
+            return false;
+        }
+        final Operand left = (Operand)stack.pop();
+
+        if (!visitInRightOperandList(ctx.right)) {
+            return false;
+        }
+
+        final List<Operand> rights = (List<Operand>)stack.pop();
+        final DruidQuery.In_or_not_inContext in = ctx.in_or_not_in();
+
+        List<IBooleanExpr> list = Lists.newArrayList();
+        if (in instanceof DruidQuery.InOpContext) {
+            return visitIN(left, rights, list);
+        } else if (in instanceof DruidQuery.NotInOpContext) {
+            return visitNotIN(left, rights, list);
+        }
+
+        return false;
+    }
+
+    private Boolean visitIN(Operand left, List<Operand> rights, List<IBooleanExpr> list) {
+        for (Operand operand : rights) {
+            list.add(new BooleanExprEq(left, operand));
+        }
+        IBooleanExpr result = foldToBooleanOr(list);
+        stack.push(result);
+        return true;
+    }
+
+    private Boolean visitNotIN(Operand left, List<Operand> rights, List<IBooleanExpr> list) {
+        for (Operand operand : rights) {
+            list.add(new BooleanExprNot(new BooleanExprEq(left, operand)));
+        }
+        IBooleanExpr result = foldToBooleanAnd(list);
+        stack.push(result);
+        return true;
+    }
+
+    private IBooleanExpr foldToBooleanAnd(List<IBooleanExpr> list) {
+        IBooleanExpr result;
+        if (list.size() == 1) {
+            result = list.get(0);
+        } else {
+            result = list.remove(0);
+            for (IBooleanExpr exp : list) {
+                result = new BooleanExprAnd(result, exp);
+            }
+        }
+        return result;
+    }
+
+    private IBooleanExpr foldToBooleanOr(List<IBooleanExpr> list) {
+        IBooleanExpr result;
+        if (list.size() == 1) {
+            result = list.get(0);
+        } else {
+            result = new BooleanExprOr(list);
+        }
+        return result;
     }
 
     @Override
     public Boolean visitInRightOperandList(InRightOperandListContext ctx) {
-        return null;
+        List<Operand> list = Lists.newArrayList();
+        final List<DruidQuery.InRightOperandContext> inRightOperandContexts = ctx.inRightOperand();
+        if (inRightOperandContexts.isEmpty()) {
+            return false;
+        }
+
+        for (DruidQuery.InRightOperandContext inRightOperandCtx : inRightOperandContexts) {
+            visitInRightOperand(inRightOperandCtx);
+            final Operand operand = (Operand)stack.pop();
+            list.add(operand);
+        }
+        stack.push(list);
+        return true;
+    }
+
+    public Boolean visitInRightOperand(DruidQuery.InRightOperandContext ctx) {
+        if (ctx instanceof DruidQuery.ConstLiteralContext) {
+            return visitConstLiteral((DruidQuery.ConstLiteralContext)ctx);
+        } else if (ctx instanceof DruidQuery.ArithMetricLiteralContext) {
+            return visitArithMetricLiteral((DruidQuery.ArithMetricLiteralContext)ctx);
+        }
+
+        return false;
     }
 
     @Override
     public Boolean visitConstLiteral(ConstLiteralContext ctx) {
-        return null;
+        DruidQuery.Const_literalContext conCtx = ctx.const_literal();
+        if (conCtx instanceof DruidQuery.IntLiteralContext) {
+            return visitIntLiteral((DruidQuery.IntLiteralContext)conCtx);
+        } else if (conCtx instanceof DruidQuery.FloatLiteralContext) {
+            return visitFloatLiteral((DruidQuery.FloatLiteralContext)conCtx);
+        } else if (conCtx instanceof DruidQuery.StringLiteralContext) {
+            return visitStringLiteral((DruidQuery.StringLiteralContext)conCtx);
+        }
+        return false;
     }
 
     @Override
     public Boolean visitArithMetricLiteral(ArithMetricLiteralContext ctx) {
-        return null;
+        if (!visitInRightOperand(ctx.left)) {
+            return false;
+        }
+        final Operand left = (Operand)stack.pop();
+
+        if (!visitInRightOperand(ctx.right)) {
+            return false;
+        }
+        final Operand right = (Operand)stack.pop();
+        return visitArithMetricOperand(left, ctx.op, right);
+    }
+
+    private Boolean visitArithMetricOperand(Operand left, Token op, Operand right) {
+        int type = op.getType();
+        switch (type) {
+            case DruidLexer.PLUS:
+                stack.push(new AddOperand(left, right));
+                return true;
+            case DruidLexer.MINUS:
+                stack.push(new MinusOperand(left, right));
+                return true;
+            case DruidLexer.STAR:
+                stack.push(new MultiplyOperand(left, right));
+                return true;
+            case DruidLexer.SLASH:
+                stack.push(new DivideOperand(left, right));
+                return true;
+            case DruidLexer.MOD:
+                stack.push(new QuotientOperand(left, right));
+                return true;
+            default:
+                return false;
+        }
     }
 
     @Override
     public Boolean visitInOp(InOpContext ctx) {
-        return null;
+        return true;
     }
 
     @Override
     public Boolean visitNotInOp(NotInOpContext ctx) {
-        return null;
+        return true;
     }
 
     @Override
     public Boolean visitIntLiteral(IntLiteralContext ctx) {
-        return null;
+        stack.push(new IntPrimitiveOperand(ctx.getText()));
+        return true;
     }
 
     @Override
     public Boolean visitFloatLiteral(FloatLiteralContext ctx) {
-        return null;
+        stack.push(new FloatPrimitiveOperand(ctx.getText()));
+        return true;
     }
 
     @Override
     public Boolean visitStringLiteral(StringLiteralContext ctx) {
-        return null;
+        stack.push(new StringPrimitiveOperand(ctx.getText()));
+        return true;
     }
 
     @Override
@@ -477,7 +756,15 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitOrder(OrderContext ctx) {
-        return null;
+        boolean isDesc = false;
+        if (ctx.type != null) {
+            isDesc = ctx.type.getType() == DruidLexer.DESC;
+        }
+        if (visitName(ctx.name())) {
+            stack.push(new OrderByOperand((Operand)stack.pop(), isDesc));
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -506,17 +793,42 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitSimpleGran(SimpleGranContext ctx) {
-        return null;
+        final String literalName = ctx.simple.getText().toUpperCase();
+        Granularity gran;
+
+        if ("ALL".equals(literalName) || "NONE".equals(literalName)) {
+            gran = new SimpleGranularity(literalName);
+        } else if (Granularities.LiteralDurationMap.containsKey(literalName)) {
+            gran = Granularities.LiteralDurationMap.get(literalName);
+        } else {
+            throw new RuntimeException(literalName + " does not support");
+        }
+
+        stack.push(gran);
+        return true;
     }
 
     @Override
     public Boolean visitDurationGran(DurationGranContext ctx) {
-        return null;
+        long start = 0;
+        if (ctx.left != null) {
+            start = valueOf(ctx.left.getText());
+        }
+        long duration = valueOf(ctx.right.getText());
+        stack.push(Granularities.fromDuration(duration, start));
+        return true;
     }
 
     @Override
     public Boolean visitPeriodGran(PeriodGranContext ctx) {
-        return null;
+        long start = 0;
+        if (ctx.left != null) {
+            start = valueOf(ctx.left.getText());
+        }
+        String period = ctx.right.getText();
+        String timeZone = ctx.timeZone.getText();
+        stack.push(Granularities.fromPeriod(period, timeZone, start));
+        return true;
     }
 
     @Override
