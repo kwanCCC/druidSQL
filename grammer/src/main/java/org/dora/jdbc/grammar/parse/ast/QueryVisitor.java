@@ -17,6 +17,9 @@ import org.dora.jdbc.grammar.model.IBooleanExpr;
 import org.dora.jdbc.grammar.model.expr.BooleanExprAnd;
 import org.dora.jdbc.grammar.model.expr.BooleanExprEq;
 import org.dora.jdbc.grammar.model.expr.BooleanExprGt;
+import org.dora.jdbc.grammar.model.expr.BooleanExprLike;
+import org.dora.jdbc.grammar.model.expr.BooleanExprLt;
+import org.dora.jdbc.grammar.model.expr.BooleanExprNot;
 import org.dora.jdbc.grammar.model.operand.AddOperand;
 import org.dora.jdbc.grammar.model.operand.AliasOperand;
 import org.dora.jdbc.grammar.model.operand.ConditionAggregationOperand;
@@ -460,22 +463,49 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitLteqOpr(LteqOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                stack.push(new BooleanExprLt(left, right, true));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitNotEqOpr(NotEqOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                stack.push(new BooleanExprNot(new BooleanExprEq(left, right)));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitLikeOpr(LikeOprContext ctx) {
-        return null;
+        if (visitBoolExpr(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitBoolExpr(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                stack.push(new BooleanExprLike(left, right));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitInBooleanExpr(InBooleanExprContext ctx) {
-        return null;
+        if (!visitInExpr(ctx.inExpr())) {
+            return false;
+        }
+        return true;
     }
 
     @Override
