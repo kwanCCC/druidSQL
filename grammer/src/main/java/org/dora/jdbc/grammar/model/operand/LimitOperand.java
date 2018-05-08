@@ -1,4 +1,4 @@
-package org.dora.jdbc.grammar.model;
+package org.dora.jdbc.grammar.model.operand;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

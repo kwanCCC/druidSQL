@@ -9,13 +9,18 @@ import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.dora.jdbc.grammar.model.AliasOperand;
+import org.dora.jdbc.grammar.model.operand.AliasOperand;
+import org.dora.jdbc.grammar.model.operand.DivideOperand;
+import org.dora.jdbc.grammar.model.FunctionManager;
 import org.dora.jdbc.grammar.model.Granularities;
 import org.dora.jdbc.grammar.model.Granularity;
 import org.dora.jdbc.grammar.model.IBooleanExpr;
-import org.dora.jdbc.grammar.model.LimitOperand;
-import org.dora.jdbc.grammar.model.Operand;
-import org.dora.jdbc.grammar.model.OrderByOperand;
+import org.dora.jdbc.grammar.model.operand.LimitOperand;
+import org.dora.jdbc.grammar.model.operand.MultiplyOperand;
+import org.dora.jdbc.grammar.model.operand.Operand;
+import org.dora.jdbc.grammar.model.operand.OrderByOperand;
+import org.dora.jdbc.grammar.model.operand.QuotientOperand;
+import org.dora.jdbc.grammar.parse.DruidLexer;
 import org.dora.jdbc.grammar.parse.DruidQuery;
 import org.dora.jdbc.grammar.parse.DruidQuery.AddNameContext;
 import org.dora.jdbc.grammar.parse.DruidQuery.AggregationNameContext;
@@ -203,12 +208,37 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitMulName(MulNameContext ctx) {
-        return null;
+        if (visitName(ctx.left)) {
+            Operand left = (Operand)stack.pop();
+            if (visitName(ctx.right)) {
+                Operand right = (Operand)stack.pop();
+                int type = ctx.op.getType();
+                switch (type) {
+                    case DruidLexer.STAR:
+                        stack.push(new MultiplyOperand(left, right));
+                        return true;
+                    case DruidLexer.SLASH:
+                        stack.push(new DivideOperand(left, right));
+                        return true;
+                    case DruidLexer.MOD:
+                        stack.push(new QuotientOperand(left, right));
+                        return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Override
     public Boolean visitAggregationName(AggregationNameContext ctx) {
-        return null;
+        if (visitName(ctx.columnName)) {
+            String aggFun = ctx.ID().getText();
+            Operand inOperand = (Operand)stack.pop();
+            Operand aggregationOperand = (Operand)FunctionManager.getFunction(aggFun).call(inOperand);
+            stack.push(aggregationOperand);
+            return true;
+        }
+        return false;
     }
 
     @Override

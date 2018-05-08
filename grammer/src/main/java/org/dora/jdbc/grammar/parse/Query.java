@@ -7,9 +7,9 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.dora.jdbc.grammar.model.Granularity;
 import org.dora.jdbc.grammar.model.IBooleanExpr;
-import org.dora.jdbc.grammar.model.LimitOperand;
-import org.dora.jdbc.grammar.model.Operand;
-import org.dora.jdbc.grammar.model.OrderByOperand;
+import org.dora.jdbc.grammar.model.operand.LimitOperand;
+import org.dora.jdbc.grammar.model.operand.Operand;
+import org.dora.jdbc.grammar.model.operand.OrderByOperand;
 
 /**
  * Created by SDE on 2017/5/7.
