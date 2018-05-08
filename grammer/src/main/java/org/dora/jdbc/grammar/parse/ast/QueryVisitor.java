@@ -10,7 +10,12 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.dora.jdbc.grammar.model.AliasOperand;
+import org.dora.jdbc.grammar.model.Granularities;
+import org.dora.jdbc.grammar.model.Granularity;
+import org.dora.jdbc.grammar.model.IBooleanExpr;
+import org.dora.jdbc.grammar.model.LimitOperand;
 import org.dora.jdbc.grammar.model.Operand;
+import org.dora.jdbc.grammar.model.OrderByOperand;
 import org.dora.jdbc.grammar.parse.DruidQuery;
 import org.dora.jdbc.grammar.parse.DruidQuery.AddNameContext;
 import org.dora.jdbc.grammar.parse.DruidQuery.AggregationNameContext;
@@ -94,12 +99,52 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
             }
             builder.columns((List<Operand>)stack.pop());
         }
-        return null;
+        if (ctx.quantifiers() != null) {
+            if (!visitQuantifiers(ctx.quantifiers())) {
+                return false;
+            }
+            builder.isUnique((Boolean)stack.pop());
+        }
+        if (ctx.whereClause() != null) {
+            if (!visitWhereClause(ctx.whereClause())) {
+                return false;
+            }
+            builder.whereClause((IBooleanExpr)stack.pop());
+        }
+        if (ctx.groupClause() != null) {
+            if (!visitGroupClause(ctx.groupClause())) {
+                return false;
+            }
+            builder.groupBys((List<Operand>)stack.pop());
+        }
+        if (ctx.orderClause() != null) {
+            if (!visitOrderClause(ctx.orderClause())) {
+                return false;
+            }
+            builder.orderBy((List<OrderByOperand>)stack.pop());
+        }
+        if (ctx.limitClause() != null) {
+            if (!visitLimitClause(ctx.limitClause())) {
+                return false;
+            }
+            builder.limit((LimitOperand)stack.pop());
+
+        }
+        if (ctx.granularityClause() == null) {
+            builder.granularity(Granularities.ALL);
+        } else {
+            if (!visitGranularityClause(ctx.granularityClause())) {
+                return false;
+            }
+            builder.granularity((Granularity)stack.pop());
+        }
+        return true;
     }
 
     @Override
     public Boolean visitQuantifiers(QuantifiersContext ctx) {
-        return null;
+        stack.push(true);
+        return true;
     }
 
     @Override
@@ -114,7 +159,7 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
             operands.add(operand);
         }
         stack.push(operands);
-        return null;
+        return true;
     }
 
     @Override
@@ -137,7 +182,7 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
         return false;
     }
 
-    public Boolean visitName(DruidQuery.NameContext ctx) {
+    private Boolean visitName(DruidQuery.NameContext ctx) {
         if (ctx instanceof DruidQuery.LRNameContext) {
             return visitLRName((DruidQuery.LRNameContext)ctx);
         } else if (ctx instanceof DruidQuery.MulNameContext) {
@@ -220,7 +265,44 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitWhereClause(WhereClauseContext ctx) {
-        return null;
+        if (visitTimestamps(ctx.timestamps())) {
+            DruidQuery.BoolExprContext boolExpr = ctx.boolExpr();
+            if (boolExpr != null) {
+                return visitBoolExpr(ctx.boolExpr());
+            }
+            stack.push(null);
+            return true;
+        }
+        return false;
+    }
+
+    private Boolean visitBoolExpr(DruidQuery.BoolExprContext ctx) {
+        if (ctx instanceof DruidQuery.LrExprContext) {
+            return visitLrExpr((DruidQuery.LrExprContext)ctx);
+        } else if (ctx instanceof DruidQuery.EqOprContext) {
+            return visitEqOpr((DruidQuery.EqOprContext)ctx);
+        } else if (ctx instanceof DruidQuery.GtOprContext) {
+            return visitGtOpr((DruidQuery.GtOprContext)ctx);
+        } else if (ctx instanceof DruidQuery.LtOprContext) {
+            return visitLtOpr((DruidQuery.LtOprContext)ctx);
+        } else if (ctx instanceof DruidQuery.GteqOprContext) {
+            return visitGteqOpr((DruidQuery.GteqOprContext)ctx);
+        } else if (ctx instanceof DruidQuery.LteqOprContext) {
+            return visitLteqOpr((DruidQuery.LteqOprContext)ctx);
+        } else if (ctx instanceof DruidQuery.LikeOprContext) {
+            return visitLikeOpr((DruidQuery.LikeOprContext)ctx);
+        } else if (ctx instanceof DruidQuery.AndOprContext) {
+            return visitAndOpr((DruidQuery.AndOprContext)ctx);
+        } else if (ctx instanceof DruidQuery.OrOprContext) {
+            return visitOrOpr((DruidQuery.OrOprContext)ctx);
+        } else if (ctx instanceof DruidQuery.NotEqOprContext) {
+            return visitNotEqOpr((DruidQuery.NotEqOprContext)ctx);
+        } else if (ctx instanceof DruidQuery.InBooleanExprContext) {
+            return visitInBooleanExpr((DruidQuery.InBooleanExprContext)ctx);
+        } else if (ctx instanceof DruidQuery.NameOprContext) {
+            return visitNameOpr((DruidQuery.NameOprContext)ctx);
+        }
+        return false;
     }
 
     @Override
@@ -335,12 +417,32 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitGroupClause(GroupClauseContext ctx) {
-        return null;
+        List<Operand> groupBys = new ArrayList<>();
+        List<DruidQuery.NameContext> names = ctx.name();
+        for (DruidQuery.NameContext name : names) {
+            if (!visitName(name)) {
+                return false;
+            }
+            Operand inOperand = (Operand)stack.pop();
+            groupBys.add(inOperand);
+        }
+        stack.push(groupBys);
+        return true;
     }
 
     @Override
     public Boolean visitOrderClause(OrderClauseContext ctx) {
-        return null;
+        List<OrderByOperand> orderbys = new ArrayList<>();
+        List<DruidQuery.OrderContext> orders = ctx.order();
+        for (DruidQuery.OrderContext orderContext : orders) {
+            if (!visitOrder(orderContext)) {
+                return false;
+            }
+            OrderByOperand inOperand = (OrderByOperand)stack.pop();
+            orderbys.add(inOperand);
+        }
+        stack.push(orderbys);
+        return true;
     }
 
     @Override
@@ -350,12 +452,26 @@ public class QueryVisitor implements org.dora.jdbc.grammar.parse.DruidQueryVisit
 
     @Override
     public Boolean visitLimitClause(LimitClauseContext ctx) {
-        return null;
+        int offset = 0;
+        int resultCount = Integer.valueOf(ctx.resultCount.getText());
+        if (ctx.offset != null) {
+            offset = Integer.valueOf(ctx.offset.getText());
+        }
+        stack.push(new LimitOperand(offset, resultCount));
+        return true;
     }
 
     @Override
     public Boolean visitGranularityClause(GranularityClauseContext ctx) {
-        return null;
+        DruidQuery.GranularityExprContext granExpr = ctx.granularityExpr();
+        if (granExpr instanceof DruidQuery.SimpleGranContext) {
+            return visitSimpleGran((DruidQuery.SimpleGranContext)granExpr);
+        } else if (granExpr instanceof DruidQuery.DurationGranContext) {
+            return visitDurationGran((DruidQuery.DurationGranContext)granExpr);
+        } else if (granExpr instanceof DruidQuery.PeriodGranContext) {
+            return visitPeriodGran((DruidQuery.PeriodGranContext)granExpr);
+        }
+        return false;
     }
 
     @Override
